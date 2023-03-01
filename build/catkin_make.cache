@@ -1,0 +1,2 @@
+core:som_wall_detection:tritech_micron
+-DCATKIN_DEVEL_PREFIX=/home/bluerov2-22/v1Bluerov/devel -DCMAKE_INSTALL_PREFIX=/home/bluerov2-22/v1Bluerov/install -G Unix Makefiles

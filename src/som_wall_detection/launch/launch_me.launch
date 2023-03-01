@@ -1,0 +1,4 @@
+<launch>
+    node name="rviz" pkg="rviz" type="rviz" args="-d $(find sonal_wall_sonar detection)/launch/sonar.rviz" respawn="true"
+    <node name="test_node" pkg="som_wall_detection" type="mynode" output="screen"/>
+</launch>

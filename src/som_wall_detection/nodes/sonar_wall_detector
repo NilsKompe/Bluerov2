@@ -1,0 +1,353 @@
+#!/usr/bin/env python
+
+import rospy
+import numpy as np
+import sys
+from sensor_msgs.msg import PointCloud, PointCloud2, PointField, ChannelFloat32
+from geometry_msgs.msg import Point32
+
+from visualization_msgs.msg import Marker
+from visualization_msgs.msg import MarkerArray
+
+from standard_self_organising_map import standard_self_organising_map
+from generalized_self_organising_map import generalizedSelfOrganisingMap
+from visualization_msgs.msg import Marker
+
+########################################TODO##########################################
+# 1. rviz richtig darstellen (tf? Leerer Frame-Name -> offensichtlich Fehler, wie benennen?)
+# 2. Launch-file mit rviz, rosbag, diesem Node (als Vorlage Ehlers c++ launch-file)
+# 3. PC in rviz ueberpruefen (im Terminal mit 80.000 Punkten eher bloed), bei Bedarf thresholds anpassen
+######################################################################################
+########################## -1 ueberpruefen
+
+class tritechMicronScanner(object):
+
+    def __init__(self):
+
+        #init publisher and subscriber
+        subTopicPath = "/tritech_micron/scan"
+        self.tritechMicronSub = rospy.Subscriber(subTopicPath, PointCloud, self.scan_callback)
+        pubTopicPath = "sonar_scan"
+        self.sonarPub = rospy.Publisher(pubTopicPath, PointCloud, queue_size = 1)
+        self.sSOMPub = rospy.Publisher("stdSOM", Marker, queue_size = 1)
+        self.gSOMPub = rospy.Publisher("genSOM", PointCloud, queue_size = 1)
+
+        self.sonarRange = 2.0
+        self.numberBins = 400
+        self.stepMotor = 1.8
+        
+        self.somPub = rospy.Publisher("som", MarkerArray, queue_size = 1)
+        self.color = (0,75.0/255.0, 90.0/255.0)
+        
+        
+        self.sonarScan = PointCloud()
+        #self.sonarScan2 = PointCloud()
+        #self.sonarScan2.header.frame_id = "sonar"
+        self.sonarScan.header.frame_id = "sonar"
+        
+
+        #ceate an empty PC with 80.000 entries
+        points = []
+        intensities = []
+        for i in range(80000):
+            points.append(Point32(0,0,0))
+            intensities.append(0)
+     
+        self.sonarScan.points = points
+
+        channel = ChannelFloat32()
+        channel.values = intensities
+        channel.name = "Intensities"
+        self.sonarScan.channels = [channel]
+
+
+
+    def scan_callback(self, data):
+        
+
+        sonarSlicePoints = data.points        #float array with points(x, y, z)
+        sonarSliceIntensities = data.channels[0].values    #float array with intensity
+
+        #calculate angle and corresponding index
+        alpha = np.arctan2(sonarSlicePoints[len(sonarSlicePoints)-1].y, sonarSlicePoints[len(sonarSlicePoints)-1].x)*180/np.pi
+        baseIdx = round((180 - self.stepMotor + alpha) / self.stepMotor)
+    
+        a = int(baseIdx*self.numberBins)
+   
+        intensityThreshold = 100
+        distanceFromRobotThreshold = 2
+        #actualise PC
+
+        
+
+        for i in range(len(sonarSlicePoints)-1):
+
+            tmpPoint = Point32()
+            tmpPoint.x = sonarSlicePoints[i].x
+            tmpPoint.y = sonarSlicePoints[i].y
+            tmpPoint.z = sonarSliceIntensities[i]
+
+
+            skalarProdTmp = np.sqrt(tmpPoint.x * tmpPoint.x +tmpPoint.y * tmpPoint.y )
+            if tmpPoint.z > intensityThreshold and skalarProdTmp > distanceFromRobotThreshold:
+
+                self.sonarScan.points[a+i] = tmpPoint
+                
+                self.sonarScan.channels[0].values[a+i] = tmpPoint.z
+                self.sonarScan.points[a+i].z = tmpPoint.z /40
+
+            else:    
+                try: 
+                    self.sonarScan.points[a+i] = Point32(0,0,0)
+                except:
+                    print("som_detc: a+i", a+i)
+                
+                self.sonarScan.channels[0].values[a+i] = 0
+        
+
+        #---------------------------------------------
+        #create and publish new  test PC 
+        #points = []
+        #intensities = []
+        #for i in range(500):
+        #    points.append(Point32(1, i/100, 150))
+            #points.append(Point32(i/120,3,101+i))
+        #    intensities.append(120+i/120+100)
+        #for i in range(500):
+        #    points.append(Point32(1+i/100, 5, 0))
+        #    intensities.append(120+i/120+100)
+        #self.sonarScan2.points = points
+        
+
+        #channel = ChannelFloat32()
+        #channel.values = intensities
+        #self.sonarScan2.channels = [channel]
+        #self.indices = []
+        #max_intensity = 0
+        #min_intensity = sys.float_info.max
+        #self.sonarScan2.channels[0].values=intensities
+        #intensities = []
+
+        #for i in range(len(self.sonarScan2.points)-1):
+        
+            
+            #if self.sonarScan.points[i].z > intensityThreshold:
+        #    if self.sonarScan2.channels[0].values[i] > intensityThreshold:
+             
+        #        points.append(self.sonarScan2.points[i])
+        #        intensities.append(0)   #warum appenden wir 0?
+        #        self.indices.append(i)
+                #if self.sonarScan2.points[i].z < min_intensity
+                    #min_intensity = self.sonarScan2.points[i].z
+        #        if self.sonarScan2.channels[0].values[i] < min_intensity:
+        #            min_intensity = self.sonarScan.channels[0].values[i]
+                
+                #if self.sonarScan2.points[i].z > max_intensity:
+                    #max_intensity = self.sonarScan2.points[i].z
+        #        if self.sonarScan2.channels[0].values[i] > max_intensity:
+         #           max_intensity = self.sonarScan2.channels[0].values[i]
+        
+        #self.sonarPub.publish(self.sonarScan2)
+            # self.sonarPub.publish(self.sonarScan)
+
+        #------------------------------------
+        
+        
+
+
+        points = []
+        intensity = []
+        self.indices = []
+        max_intensity = 0
+        min_intensity = sys.float_info.max
+
+        #prüft welche punkte der PC über dem Threshhold liegen zur Wand detektion 
+        # und fügt sie einer neuen liste zu
+
+
+        # für die lionien PC alle sonarscan durch sonarScan2 ersetzen
+        for i in range(len(self.sonarScan.points)-1):
+
+
+            if self.sonarScan.channels[0].values[i] > intensityThreshold:
+             
+                points.append(self.sonarScan.points[i])
+                intensity.append(self.sonarScan.channels[0].values[i])
+                self.indices.append(i)
+
+                if self.sonarScan.channels[0].values[i] < min_intensity:
+                    min_intensity = self.sonarScan.channels[0].values[i]
+
+                if self.sonarScan.channels[0].values[i] > max_intensity:
+                    max_intensity = self.sonarScan.channels[0].values[i]
+
+
+      
+        #publish the values of the updated PC just with the high intensitys
+        self.sonarPub.publish(self.sonarScan)
+
+
+        #calculates the Marker with the gSom and sSom of type Marker
+        self.gSOM = generalizedSelfOrganisingMap(5)
+        self.sSOM = standard_self_organising_map(5)
+        
+
+        #custom pointcloud bestimmen lassen
+
+
+        nodes = self.gSOM.train(self.sonarScan, self.indices, min_intensity, max_intensity)
+        adjMatrix = self.gSOM.getAdjMatrix()
+        self.visualize(nodes, adjMatrix)
+
+
+
+
+
+
+    def visualize(self, nodes, adjMatrix):
+        markerArray = MarkerArray()
+
+
+
+        timeStamp = rospy.Time.now()
+        #show nodes
+        
+
+        for i in range (0, len(nodes)):
+            self.addNode2MarkerArray(markerArray,
+                                    nodes[i], 
+                                    timeStamp, 
+                                    self.color)
+
+        #show edges
+
+        for i in range (0, len(nodes)):
+            for j in range (i+1, len(nodes)):
+                if adjMatrix[i][j] == 1:
+                    self.addEdge2MarkerArray(markerArray, nodes[i], nodes[j], timeStamp, self.color)
+        self.somPub.publish(markerArray)
+        
+
+    def addNode2MarkerArray(self,
+                            MarkerArray, 
+                            point,
+                            timeStamp, 
+                            color):
+            marker = Marker()
+
+            marker.header.frame_id = "sonar"
+            marker.header.stamp = timeStamp
+            marker.type = 2  # sphere  
+            marker.ns = "basic_shapes"
+
+        
+            marker.id = len(MarkerArray.markers)
+            marker.action = marker.ADD
+
+
+            marker.pose.position.x = point.x
+            marker.pose.position.y = point.y
+            marker.pose.position.z = point.z #0
+
+            marker.pose.orientation.x = 0.0
+            marker.pose.orientation.y = 0.0
+            marker.pose.orientation.z = 0.0
+            marker.pose.orientation.w = 1.0
+
+            marker.scale.x = 0.5
+            marker.scale.y = 0.5
+            marker.scale.z = 0.5
+
+            marker.color.r = color[0]
+            marker.color.g = color[1]
+            marker.color.b = color[2]
+
+            marker.color.a = 1
+            print("Marker x" , marker.pose.position.x,"Marker y", marker.pose.position.y)
+
+
+            MarkerArray.markers.append(marker)
+
+    def addEdge2MarkerArray(self, markerArray, point1, point2, timeStamp, color):
+        marker = Marker()
+
+        marker.header.frame_id = "sonar"
+        marker.header.stamp = timeStamp
+        # namespace and id
+        marker.ns = "basic_shapes"
+        marker.id = len(markerArray.markers)
+        marker.type = marker.CYLINDER
+        marker.action = marker.ADD
+        marker.color.r = color[0]
+        marker.color.g = color[1]
+        marker.color.b = color[2]
+
+        marker.color.a = 0.75
+        # vector between points
+        dx = point1.x - point2.x
+        dy = point1.y - point2.y
+        dz = point1.z - point2.z
+
+
+        marker.scale.x = 0.25
+        marker.scale.y = 0.25
+        # edge length
+        marker.scale.z = np.sqrt(dx * dx + dy * dy + dz * dz)
+
+        # edge position
+        marker.pose.position.x = (point1.x + point2.x) / 2
+        marker.pose.position.y = (point1.y + point2.y) / 2
+        marker.pose.position.z = (point1.z + point2.z) / 2
+
+         # calculate rotation matrix
+        yaw = np.arctan2(dx, dz)
+        pitch = 0.0
+        roll = -np.arctan2(dy, np.sin(yaw) * dx + np.cos(yaw) * dz)
+
+        # transformation into vector and angle form
+        cy = np.cos(yaw / 2)
+        cp = np.cos(pitch / 2)
+        cr = np.cos(roll / 2)
+
+        sy = np.sin(yaw / 2)
+        sp = np.sin(pitch / 2)
+        sr = np.sin(roll / 2)
+
+        angle = 2 * np.arccos(cy * cp * cr - sy * sp * sr)
+        ax = sy * sp * cr + cy * cp * sr
+        ay = sy * cp * cr + cy * sp * sr
+        az = cy * sp * cr - sy * cp * sr
+        norm = np.sqrt(ax * ax + ay * ay + az * az)
+
+        if norm > 0:
+            ax /= norm
+            ay /= norm
+            az /= norm
+
+        # orientation as quaternion
+        marker.pose.orientation.x = ax * np.sin(angle / 2)
+        marker.pose.orientation.y = ay * np.sin(angle / 2)
+        marker.pose.orientation.z = az * np.sin(angle / 2)
+        marker.pose.orientation.w = np.cos(angle / 2)
+
+        markerArray.markers.append(marker)
+
+
+""" PC aus Rosbag darstellen 
+1. start roscore: roscore
+2. start rosbag: 
+        navigiere zu ~/uwr_ws/src/som_wall_detection/rosbags/
+        rosbag play -l <RosbagName> (RatzeburgerSee-2019-01-22-15-05-01.bag)
+3. start rviz: rosrun rviz rviz
+4. change rviz Displays -> Global Options -> Fixed Frame from "map" to "sonar"
+5. add display -> by topic -> tritech_micron/scan/PointCloud
+6. change rviz Displays ->PointCloud -> Decay Time from 0 to 38
+"""
+
+
+if __name__ == "__main__":
+    rospy.init_node("my_node")
+    Scanner = tritechMicronScanner()
+    rospy.spin()
+    # stop with CTRL-C
+

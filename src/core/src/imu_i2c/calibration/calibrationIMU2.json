@@ -1,0 +1,25 @@
+{
+"acc_unit" : "m.s^-2", 
+"acc_off_x" : 0.218,
+"acc_off_y" : 0.437,
+"acc_off_z" : -0.243,
+"acc_scale_x" : 1,
+"acc_scale_y" : 1,
+"acc_scale_z" : 1,
+
+"gyr_unit" : "degree per second",
+"gyr_off_x" : -0.239, 
+"gyr_off_y" : 1.94,
+"gyr_off_z" : 0.487,
+"gyr_scale_x" : 1,
+"gyr_scale_y" : 1,  
+"gyr_scale_z" : 1,
+
+"magn_unit": "gauss",
+"magn_off_x" : -0.276,
+"magn_off_y" : 0.270,
+"magn_off_z" : -0.102,
+"magn_scale_x" : 0.383,
+"magn_scale_y" : 0.419,
+"magn_scale_z" : 0.477
+}

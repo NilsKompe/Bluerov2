@@ -1,0 +1,8 @@
+prefix=/home/bluerov2-22/v1Bluerov/devel
+
+Name: core
+Description: Description of core
+Version: 0.0.0
+Cflags: -I/home/bluerov2-22/v1Bluerov/devel/include
+Libs: -L${prefix}/lib 
+Requires: rospy message_runtime
